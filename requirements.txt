@@ -1,0 +1,12 @@
+streamlit
+pandas
+numpy
+plotly
+easyocr
+pytesseract
+pdf2image
+opencv-python-headless
+Pillow
+rapidfuzz
+groq
+python-dotenv
