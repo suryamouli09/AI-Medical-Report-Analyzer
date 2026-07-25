@@ -1,46 +1,99 @@
+import sqlite3
 import pandas as pd
+import json
 import os
 
-FILE = "history.csv"
+DB_NAME = "users.db"
 
+def init_history_db():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT,
+            user TEXT,
+            patient_name TEXT,
+            risk_level TEXT,
+            health_score INTEGER,
+            parameters_json TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+# Initialize table automatically
+init_history_db()
+
+# ─────────────────────────────────────────────
+# Save History
+# ─────────────────────────────────────────────
 
 def save_history(data):
+    init_history_db()
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
 
-    new_df = pd.DataFrame([data])
+    date_str = str(data.get("date", pd.Timestamp.now()))
+    user = data.get("user", "")
+    patient_name = data.get("patient_name", "")
+    risk_level = data.get("risk_level", "")
+    health_score = data.get("health_score", 0)
 
-    # If file exists, align columns safely
-    if os.path.exists(FILE):
+    # Extract parameters
+    params = {
+        k: v for k, v in data.items()
+        if k not in ["date", "user", "patient_name", "risk_level", "health_score"]
+    }
 
-        try:
-            old_df = pd.read_csv(FILE)
+    parameters_json = json.dumps(params)
 
-            # Merge columns
-            combined_columns = list(
-                set(old_df.columns).union(set(new_df.columns))
-            )
+    c.execute("""
+        INSERT INTO history (date, user, patient_name, risk_level, health_score, parameters_json)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (date_str, user, patient_name, risk_level, health_score, parameters_json))
 
-            old_df = old_df.reindex(columns=combined_columns)
-            new_df = new_df.reindex(columns=combined_columns)
+    conn.commit()
+    conn.close()
 
-            final_df = pd.concat([old_df, new_df], ignore_index=True)
+# ─────────────────────────────────────────────
+# Load User History
+# ─────────────────────────────────────────────
 
-        except:
-            final_df = new_df
-
+def load_history(username=None):
+    init_history_db()
+    conn = sqlite3.connect(DB_NAME)
+    
+    if username:
+        df_raw = pd.read_sql_query(
+            "SELECT date, user, patient_name, risk_level, health_score, parameters_json FROM history WHERE user=?",
+            conn,
+            params=(username,)
+        )
     else:
-        final_df = new_df
+        df_raw = pd.read_sql_query(
+            "SELECT date, user, patient_name, risk_level, health_score, parameters_json FROM history",
+            conn
+        )
+    conn.close()
 
-    final_df.to_csv(FILE, index=False)
+    if df_raw.empty:
+        return pd.DataFrame()
 
-
-def load_history():
-
-    if os.path.exists(FILE):
-
+    records = []
+    for _, row in df_raw.iterrows():
+        rec = {
+            "date": row["date"],
+            "user": row["user"],
+            "patient_name": row["patient_name"],
+            "risk_level": row["risk_level"],
+            "health_score": row["health_score"]
+        }
         try:
-            return pd.read_csv(FILE)
+            params = json.loads(row["parameters_json"])
+            rec.update(params)
+        except Exception:
+            pass
+        records.append(rec)
 
-        except:
-            return pd.DataFrame()
-
-    return pd.DataFrame()
+    return pd.DataFrame(records)

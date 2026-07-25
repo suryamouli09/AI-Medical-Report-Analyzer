@@ -168,9 +168,44 @@ def find_best_parameter_match(text):
 
     return None
 
-# ─────────────────────────────────────────────
-# Smart Extraction
-# ─────────────────────────────────────────────
+def extract_value_from_line(line, matched_param=None):
+    cleaned = line
+
+    # Strip matched parameter name & aliases to avoid matching digits in names like 'HbA1c', 'B12', 'T3', 'T4'
+    if matched_param and matched_param in PARAMETER_ALIASES:
+        for alias in PARAMETER_ALIASES[matched_param]:
+            cleaned = re.sub(r'\b' + re.escape(alias) + r'\b', '', cleaned, flags=re.IGNORECASE)
+
+    # 1. Strip parenthetical reference ranges: (4.0 - 11.0), [13.5-17.5], (70-100 mg/dL)
+    cleaned = re.sub(r'[\(\[\{].*?[\)\]\}]', '', cleaned)
+
+    # 2. Strip clauses starting with ref, reference, normal, range, cutoff
+    cleaned = re.split(r'\b(?:ref|reference|normal|range|cutoff|cut-off)\b', cleaned, flags=re.IGNORECASE)[0]
+
+    # 3. Strip trailing range expressions like " 13.5 - 17.5"
+    cleaned = re.sub(r'\d+\.?\d*\s*(?:-|to)\s*\d+\.?\d*$', '', cleaned, flags=re.IGNORECASE)
+
+    # 4. Strip scientific exponents like 10^3, 10^6, 10*3
+    cleaned = re.sub(r'10\s*[\^x\*]\s*\d+', '', cleaned, flags=re.IGNORECASE)
+
+    # Find numbers in cleaned string
+    nums = re.findall(r'\d+\.?\d*', cleaned)
+
+    if not nums:
+        # Fallback to original line
+        nums = re.findall(r'\d+\.?\d*', line)
+
+    valid_nums = []
+    for n in nums:
+        try:
+            val = float(n)
+            if 0 < val <= 1000000:
+                valid_nums.append(val)
+        except Exception:
+            pass
+
+    return valid_nums[0] if valid_nums else None
+
 
 def extract_parameters_from_lines(lines):
 
@@ -180,55 +215,24 @@ def extract_parameters_from_lines(lines):
 
         line = line.strip()
 
-        if not line:
+        if not line or len(line) < 3:
             continue
 
-        if len(line) < 3:
-            continue
-
-        matched_param = (
-            find_best_parameter_match(line)
-        )
+        matched_param = find_best_parameter_match(line)
 
         if not matched_param:
             continue
 
-        values = re.findall(
-            r'\d+\.?\d*',
-            line
-        )
+        val = extract_value_from_line(line, matched_param)
 
-        if not values:
-            continue
-
-        try:
-
-            selected_value = None
-
-            for val in values:
-
-                value = float(val)
-
-                if value <= 0:
-                    continue
-
-                if value > 1000000:
-                    continue
-
-                selected_value = value
-                break
-
-            if selected_value is None:
-                continue
-
-            parameters[matched_param] = (
-                selected_value
-            )
-
-        except:
-            pass
+        if val is not None:
+            # Prefer first valid extraction per parameter
+            if matched_param not in parameters:
+                parameters[matched_param] = val
 
     return parameters
+
+
 
 # ─────────────────────────────────────────────
 # Analyze Results

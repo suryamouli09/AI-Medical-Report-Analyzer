@@ -1,11 +1,16 @@
 import os
+from dotenv import load_dotenv
 from groq import Groq
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+load_dotenv()
 
 def generate_medical_reasoning(parameters, analysis):
     if not parameters:
         return "No parameters available for clinical reasoning."
+
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        return _rule_based_reasoning(parameters, analysis)
 
     param_lines    = "\n".join([f"- {k}: {v}" for k, v in parameters.items()])
     analysis_lines = "\n".join([f"- {k}: {v}" for k, v in analysis.items()])
@@ -28,6 +33,7 @@ Provide a structured summary:
 For educational purposes only."""
 
     try:
+        client = Groq(api_key=api_key)
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
@@ -36,6 +42,7 @@ For educational purposes only."""
         return response.choices[0].message.content
     except Exception as e:
         return _rule_based_reasoning(parameters, analysis)
+
 
 
 def _rule_based_reasoning(parameters, analysis):

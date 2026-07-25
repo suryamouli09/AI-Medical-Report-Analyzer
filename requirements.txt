@@ -5,8 +5,12 @@ plotly
 easyocr
 pytesseract
 pdf2image
-opencv-python
+pdfplumber
+opencv-python-headless
 Pillow
 rapidfuzz
 groq
 python-dotenv
+reportlab
+bcrypt
+gTTS

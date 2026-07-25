@@ -1,11 +1,16 @@
 import os
+from dotenv import load_dotenv
 from groq import Groq
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+load_dotenv()
 
 def generate_explanation(params, analysis):
     if not params:
         return "No parameters detected from the report."
+
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        return _rule_based_explanation(params, analysis)
 
     summary_lines = [f"- {k}: {v} -> Status: {analysis.get(k, 'Unknown')}" for k, v in params.items()]
     summary_text = "\n".join(summary_lines)
@@ -24,6 +29,7 @@ Write a clear friendly explanation that:
 Keep the tone calm and supportive. No medical jargon."""
 
     try:
+        client = Groq(api_key=api_key)
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
@@ -32,6 +38,7 @@ Keep the tone calm and supportive. No medical jargon."""
         return response.choices[0].message.content
     except Exception as e:
         return _rule_based_explanation(params, analysis)
+
 
 
 def _rule_based_explanation(params, analysis):

@@ -1,10 +1,16 @@
 import os
+from dotenv import load_dotenv
 from groq import Groq
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+load_dotenv()
 
 def ai_chat(question, report_summary):
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        return "GROQ_API_KEY is missing. Please set it in your .env file."
+
     try:
+        client = Groq(api_key=api_key)
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
@@ -21,4 +27,4 @@ def ai_chat(question, report_summary):
         )
         return response.choices[0].message.content
     except Exception as e:
-        return f"AI Error: {str(e)}"
+        return f"AI Error: {str(e)}"
