@@ -11,6 +11,23 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 # Automated PDF Clinical Report Generator
 # ─────────────────────────────────────────────
 
+def clean_markdown_for_reportlab(text):
+    if not text:
+        return ""
+    text = str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    parts = text.split("**")
+    res = []
+    for idx, part in enumerate(parts):
+        if idx % 2 == 1:
+            res.append(f"<b>{part}</b>")
+        else:
+            res.append(part)
+    out = "".join(res)
+    out = out.replace("\n\n", "<br/><br/>").replace("\n", "<br/>")
+    return out
+
+
 def generate_pdf_report(patient_name, age, gender, health_score, risk, parameters, analysis, ranges, explanation, predictions):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -136,10 +153,11 @@ def generate_pdf_report(patient_name, age, gender, health_score, risk, parameter
     story.append(Spacer(1, 6))
 
     exp_p = ParagraphStyle('Exp', parent=styles['Normal'], fontName='Helvetica', fontSize=9.5, leading=14, textColor=colors.HexColor("#334155"))
-    clean_explanation = explanation.replace("\n\n", "<br/><br/>").replace("**", "<b>").replace("**", "</b>")
-    story.append(Paragraph(clean_explanation, exp_p))
+    clean_exp = clean_markdown_for_reportlab(explanation)
+    story.append(Paragraph(clean_exp, exp_p))
 
     # Build Document
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
+
