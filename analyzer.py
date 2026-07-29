@@ -1,4 +1,4 @@
-from medical_ranges import get_reference_ranges
+from medical_ranges import get_reference_ranges, normalize_parameter_values
 
 import re
 
@@ -230,8 +230,7 @@ def extract_parameters_from_lines(lines):
             if matched_param not in parameters:
                 parameters[matched_param] = val
 
-    return parameters
-
+    return normalize_parameter_values(parameters)
 
 
 # ─────────────────────────────────────────────
@@ -241,31 +240,28 @@ def extract_parameters_from_lines(lines):
 def analyze_results(parameters, age, gender):
 
     analysis = {}
+    norm_params = normalize_parameter_values(parameters)
+    reference_ranges = get_reference_ranges(age, gender)
 
-    reference_ranges = get_reference_ranges(
-        age,
-        gender
-    )
+    # Benign low parameters (low values have zero clinical pathology)
+    BENIGN_LOW_PARAMS = ["AST", "ALT", "Bilirubin", "Direct Bilirubin", "Indirect Bilirubin", "VLDL", "Non-HDL"]
 
-    for param, value in parameters.items():
-
+    for param, value in norm_params.items():
         if param not in reference_ranges:
             continue
 
-        low, high = (
-            reference_ranges[param]
-        )
+        low, high = reference_ranges[param]
 
         if value < low:
-
-            analysis[param] = "Low"
+            if param in BENIGN_LOW_PARAMS:
+                analysis[param] = "Normal"
+            else:
+                analysis[param] = "Low"
 
         elif value > high:
-
             analysis[param] = "High"
 
         else:
-
             analysis[param] = "Normal"
 
-    return analysis
+    return analysis
