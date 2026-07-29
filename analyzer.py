@@ -180,14 +180,65 @@ def extract_parameters_from_lines(lines):
     return normalize_parameter_values(parameters)
 
 
+def extract_reference_range_from_line(line):
+    if not line or not isinstance(line, str) or is_header_footer_line(line):
+        return None
+
+    # 1. Search for explicit pair range e.g. "13.0 - 16.5" or "150000 - 410000" or "74 - 106"
+    pair_match = re.search(r'\b(\d+\.?\d*)\s*(?:-|to)\s*(\d+\.?\d*)\b', line, flags=re.IGNORECASE)
+    if pair_match:
+        try:
+            low = float(pair_match.group(1))
+            high = float(pair_match.group(2))
+            if low <= high and high > 0:
+                return (low, high)
+        except Exception:
+            pass
+
+    # 2. Search for upper limit e.g. "< 200" or "<150" or "< 100" or "< 5.7"
+    upper_match = re.search(r'<\s*(\d+\.?\d*)', line)
+    if upper_match:
+        try:
+            high = float(upper_match.group(1))
+            if high > 0:
+                return (0.0, high)
+        except Exception:
+            pass
+
+    return None
+
+
+def extract_report_reference_ranges(lines):
+    report_ranges = {}
+    for line in lines:
+        line_str = str(line).strip()
+        if not line_str or len(line_str) < 3 or is_header_footer_line(line_str):
+            continue
+
+        matched_param = find_best_parameter_match(line_str)
+        if not matched_param:
+            continue
+
+        rng = extract_reference_range_from_line(line_str)
+        if rng:
+            if matched_param not in report_ranges:
+                report_ranges[matched_param] = rng
+
+    return report_ranges
+
+
 # ─────────────────────────────────────────────
 # Analyze Results
 # ─────────────────────────────────────────────
 
-def analyze_results(parameters, age, gender):
+def analyze_results(parameters, age, gender, report_ranges=None):
     analysis = {}
     norm_params = normalize_parameter_values(parameters)
     reference_ranges = get_reference_ranges(age, gender)
+
+    # Override with report-specific printed reference ranges if available
+    if report_ranges and isinstance(report_ranges, dict):
+        reference_ranges.update(report_ranges)
 
     BENIGN_LOW_PARAMS = ["AST", "ALT", "Bilirubin", "Direct Bilirubin", "Indirect Bilirubin", "VLDL", "Non-HDL"]
 

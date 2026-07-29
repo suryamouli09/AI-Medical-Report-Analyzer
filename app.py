@@ -43,7 +43,7 @@ from core.processor import process_report
 
 from medical_ranges import get_reference_ranges
 
-from analyzer import analyze_results
+from analyzer import analyze_results, extract_report_reference_ranges
 
 from risk_calculator import calculate_risk
 
@@ -463,21 +463,23 @@ if "current_file_key" not in st.session_state or st.session_state.current_file_k
         params = standardize_parameter_units(results["parameters"], results["lines"])
 
         if not params:
-
-
             st.error("No medical parameters detected in this report.")
-
             st.stop()
 
-        reference_ranges = get_reference_ranges(
-            patient_age,
-            patient_gender
-        )
+        # 1. Dynamically extract biological reference ranges printed on the uploaded PDF report
+        report_reference_ranges = extract_report_reference_ranges(results["lines"])
+
+        # 2. Get baseline age/gender reference ranges from dataset
+        reference_ranges = get_reference_ranges(patient_age, patient_gender)
+
+        # 3. Override baseline ranges with exact ranges printed on uploaded PDF report
+        reference_ranges.update(report_reference_ranges)
 
         analysis = analyze_results(
             params,
             patient_age,
-            patient_gender
+            patient_gender,
+            report_ranges=report_reference_ranges
         )
 
         health_score = calculate_health_score(
@@ -489,6 +491,7 @@ if "current_file_key" not in st.session_state or st.session_state.current_file_k
             params,
             reference_ranges
         )
+
 
         predictions = predict_disease(params)
 
